@@ -1,0 +1,6 @@
+{
+  "name": "E-Office HDSC",
+  "description": "An interactive, custom Android browser designed to bypass local host mapping constraints under modern secure VPNs (like AnyConnect), allowing you to route eOffice portals to custom intranet IP addresses effortlessly without root access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

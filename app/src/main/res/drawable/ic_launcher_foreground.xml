@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Background shadow for the central shield -->
+    <path
+        android:pathData="M54,23 L79,33 L79,63 C79,78 69,88 54,92 C39,88 29,78 29,63 L29,33 Z"
+        android:fillColor="#33000000" />
+
+    <!-- Main Shield in corporate Blue-Cyan gradient -->
+    <path
+        android:pathData="M54,20 L76,29 L76,60 C76,74 65,83 54,87 C43,83 32,74 32,60 L32,29 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="76"
+                android:endY="87"
+                android:startX="32"
+                android:startY="20"
+                android:type="linear">
+                <item
+                    android:color="#00D2FF"
+                    android:offset="0.0" />
+                <item
+                    android:color="#0066FF"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Shield Inner Border -->
+    <path
+        android:pathData="M54,24 L72,31 L72,57 C72,69 64,77 54,81 C44,77 36,69 36,57 L36,31 Z"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.2"
+        android:fillColor="#00000000"/>
+
+    <!-- Document Sheet peaking out of folder -->
+    <path
+        android:pathData="M48,42 L58,42 L62,46 L62,54 L48,54 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M51,45 H57 M51,48 H57 M51,51 H55"
+        android:strokeColor="#FF1565C0"
+        android:strokeWidth="0.8" />
+
+    <!-- File Folder Shape -->
+    <!-- Back folder tab -->
+    <path
+        android:pathData="M44,46 L49,46 L51,48 L64,48 L64,66 L44,66 Z"
+        android:fillColor="#FFE082" />
+    <!-- Front folder flap -->
+    <path
+        android:pathData="M44,49 L64,49 L64,66 L44,66 Z"
+        android:fillColor="#FFB300" />
+
+    <!-- Gold Accent Star badge on top representing authorization/official government office -->
+    <path
+        android:pathData="M54,58 L55.5,61 L59,61.5 L56.5,64 L57.5,67.5 L54,66 L50.5,67.5 L51.5,64 L49,61.5 L52.5,61 Z"
+        android:fillColor="#FFD700" />
+</vector>
