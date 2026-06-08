@@ -33,7 +33,7 @@ class HostsBrowserViewModel(
     private val _isProxyActive = MutableStateFlow(false)
     val isProxyActive = _isProxyActive.asStateFlow()
 
-    private val _browserUrl = MutableStateFlow("https://districts.upeoffice.gov.in")
+    private val _browserUrl = MutableStateFlow("http://google.in")
     val browserUrl = _browserUrl.asStateFlow()
 
     private val _ignoreSslErrors = MutableStateFlow(true) // Intranet government portals often use internal CAs, so default to true for user convenience

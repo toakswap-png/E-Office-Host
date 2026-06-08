@@ -4,8 +4,18 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.http.SslError
 import android.util.Log
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
 import android.webkit.*
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +32,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +68,28 @@ fun HostsBrowserApp(
     val isProxyActive by viewModel.isProxyActive.collectAsStateWithLifecycle()
     val proxyPort by viewModel.proxyPort.collectAsStateWithLifecycle()
     val ignoreSslErrors by viewModel.ignoreSslErrors.collectAsStateWithLifecycle()
+
+    val permissionsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val grantedList = results.filterValues { it }.keys
+        Log.d("Permissions", "Granted permissions: $grantedList")
+    }
+
+    LaunchedEffect(Unit) {
+        val permissions = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            arrayOf(
+                android.Manifest.permission.READ_MEDIA_IMAGES,
+                android.Manifest.permission.READ_MEDIA_VIDEO
+            )
+        } else {
+            arrayOf(
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+            )
+        }
+        permissionsLauncher.launch(permissions)
+    }
 
     // Whenever proxyPort shifts, update WebView proxy mappings globally inside Chromium
     LaunchedEffect(proxyPort) {
@@ -93,7 +128,7 @@ fun HostsBrowserApp(
                         Text(
                             text = "E-Office HDSC",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 13.sp
                         )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -238,6 +273,149 @@ fun CompactLinkChip(
     }
 }
 
+@Composable
+fun WebBrowserLoadingOverlay(
+    progress: Int,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse_loading")
+    
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.95f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .graphicsLayer {
+                        scaleX = pulseScale
+                        scaleY = pulseScale
+                        rotationZ = rotationAngle
+                    }
+                    .background(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                Color(0xFF1E88E5),
+                                Color(0xFF00B0FF),
+                                Color(0xFF0288D1),
+                                Color(0xFF1E88E5)
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+                    .padding(3.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = "Secure Loading",
+                        modifier = Modifier
+                            .size(36.dp)
+                            .graphicsLayer {
+                                rotationZ = -rotationAngle
+                            },
+                        tint = Color(0xFF1E88E5)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "eOffice Loading...",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E88E5),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = Color(0xFF1E88E5)
+                )
+                Text(
+                    text = "Loading: $progress%",
+                    fontSize = 12.sp,
+                    color = Color(0xFF1E88E5).copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1E88E5).copy(alpha = 0.05f)
+                ),
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Color(0xFF1E88E5).copy(alpha = 0.15f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Info icon",
+                        modifier = Modifier.size(14.dp),
+                        tint = Color(0xFF1E88E5)
+                    )
+                    Text(
+                        text = "By AKS Hardoi",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF1E88E5),
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun WebBrowserTab(viewModel: HostsBrowserViewModel) {
@@ -249,6 +427,32 @@ fun WebBrowserTab(viewModel: HostsBrowserViewModel) {
     var loadProgress by remember { mutableIntStateOf(0) }
     var textZoomLevel by remember { mutableIntStateOf(80) }
     var isDesktopMode by remember { mutableStateOf(true) }
+
+    var filePathCallbackRef by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+
+    val fileChooserLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val dataUri = result.data?.data
+            val dataUris = result.data?.clipData?.let { clipData ->
+                val list = mutableListOf<Uri>()
+                for (i in 0 until clipData.itemCount) {
+                    list.add(clipData.getItemAt(i).uri)
+                }
+                list.toTypedArray()
+            }
+            val results = when {
+                dataUris != null -> dataUris
+                dataUri != null -> arrayOf(dataUri)
+                else -> null
+            }
+            filePathCallbackRef?.onReceiveValue(results)
+        } else {
+            filePathCallbackRef?.onReceiveValue(null)
+        }
+        filePathCallbackRef = null
+    }
 
     // Synchronize browser URL bar input when loaded URL changes
     LaunchedEffect(browserUrl) {
@@ -315,7 +519,7 @@ fun WebBrowserTab(viewModel: HostsBrowserViewModel) {
                         modifier = Modifier
                             .weight(1f)
                             .testTag("url_input_field"),
-                        placeholder = { Text("https://districts.upeoffice.gov.in", fontSize = 13.sp) },
+                        placeholder = { Text("http://google.in", fontSize = 13.sp) },
                         singleLine = true,
                         leadingIcon = {
                             val isHttps = urlText.startsWith("https://", ignoreCase = true)
@@ -443,13 +647,8 @@ fun WebBrowserTab(viewModel: HostsBrowserViewModel) {
                     )
 
                     CompactLinkChip(
-                        text = "UP eOffice",
+                        text = "UP eOffice (e-File)",
                         onClick = { viewModel.updateBrowserUrl("https://districts.upeoffice.gov.in") }
-                    )
-
-                    CompactLinkChip(
-                        text = "E-File",
-                        onClick = { viewModel.updateBrowserUrl("https://districts.upeoffice.gov.in/efile/") }
                     )
 
                     CompactLinkChip(
@@ -517,131 +716,307 @@ fun WebBrowserTab(viewModel: HostsBrowserViewModel) {
             )
         }
 
-        // Web view integration frame
-        AndroidView(
-            factory = { context ->
-                WebView(context).apply {
-                    layoutParams = android.view.ViewGroup.LayoutParams(
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                    settings.apply {
-                        javaScriptEnabled = true
-                        domStorageEnabled = true
-                        databaseEnabled = true
-                        builtInZoomControls = true
-                        displayZoomControls = false
-                        useWideViewPort = true
-                        loadWithOverviewMode = true
-                        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                        textZoom = textZoomLevel
-                        if (isDesktopMode) {
-                            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                        } else {
-                            userAgentString = null
-                        }
-                    }
-
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                            super.onPageStarted(view, url, favicon)
-                            isWebLoading = true
-                            loadProgress = 10
-                            url?.let { urlText = it }
-                        }
-
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            super.onPageFinished(view, url)
-                            isWebLoading = false
-                            loadProgress = 100
-                            url?.let { urlText = url ?: "" }
-
-                            // Inject CSS to scale webpage images to 50% size
-                            val cssInject = """
-                                (function() {
-                                    var style = document.getElementById('webview-img-50-percent');
-                                    if (!style) {
-                                        style = document.createElement('style');
-                                        style.id = 'webview-img-50-percent';
-                                        style.type = 'text/css';
-                                        style.innerHTML = 'img { max-width: 50% !important; height: auto !important; }';
-                                        document.head.appendChild(style);
-                                    }
-                                })()
-                            """.trimIndent()
-                            view?.evaluateJavascript(cssInject, null)
-
-                            // Force Desktop Viewport Scaling
-                            if (isDesktopMode) {
-                                val viewportScript = """
-                                    (function() {
-                                        var meta = document.querySelector('meta[name="viewport"]');
-                                        if (meta) {
-                                            meta.setAttribute('content', 'width=1280, initial-scale=0.35, minimum-scale=0.1, maximum-scale=3.5, user-scalable=yes');
-                                        } else {
-                                            meta = document.createElement('meta');
-                                            meta.name = 'viewport';
-                                            meta.content = 'width=1280, initial-scale=0.35, minimum-scale=0.1, maximum-scale=3.5, user-scalable=yes';
-                                            document.getElementsByTagName('head')[0].appendChild(meta);
-                                        }
-                                    })()
-                                """.trimIndent()
-                                view?.evaluateJavascript(viewportScript, null)
-                            }
-                        }
-
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView?,
-                            request: WebResourceRequest?
-                        ): Boolean {
-                            return false // Direct all loading within this webview frame
-                        }
-
-                        override fun onReceivedSslError(
-                            view: WebView?,
-                            handler: SslErrorHandler?,
-                            error: SslError?
-                        ) {
-                            if (ignoreSslErrors) {
-                                handler?.proceed() // Proceed safely bypassing custom/untrusted SSL certs in intranets
-                            } else {
-                                handler?.cancel()
-                            }
-                        }
-                    }
-
-                    webChromeClient = object : WebChromeClient() {
-                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                            super.onProgressChanged(view, newProgress)
-                            loadProgress = newProgress
-                            if (newProgress == 100) {
-                                isWebLoading = false
-                            }
-                        }
-                    }
-
-                    webViewRef = this
-                    loadUrl(browserUrl)
-                }
-            },
-            update = { webView ->
-                webViewRef = webView
-                webView.settings.textZoom = textZoomLevel
-
-                val desktopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                val currentUA = webView.settings.userAgentString
-                val targetUA = if (isDesktopMode) desktopUA else null
-
-                if (currentUA != targetUA) {
-                    webView.settings.userAgentString = targetUA
-                    webView.reload()
-                }
-            },
+        // Web view integration frame with built-in custom animated loading layer
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .background(Color.White)
-        )
+        ) {
+            AndroidView(
+                factory = { context ->
+                    WebView(context).apply {
+                        layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
+                        settings.apply {
+                            javaScriptEnabled = true
+                            domStorageEnabled = true
+                            databaseEnabled = true
+                            builtInZoomControls = true
+                            displayZoomControls = false
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
+                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            textZoom = textZoomLevel
+                            if (isDesktopMode) {
+                                userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                            } else {
+                                userAgentString = null
+                            }
+                        }
+
+                        setDownloadListener { url, userAgentLocal, contentDisposition, mimetype, contentLength ->
+                            try {
+                                val request = DownloadManager.Request(Uri.parse(url)).apply {
+                                    setMimeType(mimetype)
+                                    val fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
+                                    
+                                    val cookies = CookieManager.getInstance().getCookie(url)
+                                    if (cookies != null) {
+                                        addRequestHeader("Cookie", cookies)
+                                    }
+                                    
+                                    addRequestHeader("User-Agent", userAgentLocal)
+                                    setTitle(fileName)
+                                    setDescription("Downloading file")
+                                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                                }
+                                
+                                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                dm.enqueue(request)
+                                
+                                Toast.makeText(context, "Download started: ${URLUtil.guessFileName(url, contentDisposition, mimetype)}", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Download failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                isWebLoading = true
+                                loadProgress = 10
+                                url?.let { urlText = it }
+                            }
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                isWebLoading = false
+                                loadProgress = 100
+                                url?.let { urlText = url ?: "" }
+
+                                // Inject CSS to scale webpage images to 50% size
+                                val cssInject = """
+                                    (function() {
+                                        var style = document.getElementById('webview-img-50-percent');
+                                        if (!style) {
+                                            style = document.createElement('style');
+                                            style.id = 'webview-img-50-percent';
+                                            style.type = 'text/css';
+                                            style.innerHTML = 'img { max-width: 50% !important; height: auto !important; }';
+                                            document.head.appendChild(style);
+                                        }
+                                    })()
+                                """.trimIndent()
+                                view?.evaluateJavascript(cssInject, null)
+
+                                // Force Desktop Viewport Scaling
+                                if (isDesktopMode) {
+                                    val viewportScript = """
+                                        (function() {
+                                            var meta = document.querySelector('meta[name="viewport"]');
+                                            if (meta) {
+                                                meta.setAttribute('content', 'width=1280, initial-scale=0.35, minimum-scale=0.1, maximum-scale=3.5, user-scalable=yes');
+                                            } else {
+                                                meta = document.createElement('meta');
+                                                meta.name = 'viewport';
+                                                meta.content = 'width=1280, initial-scale=0.35, minimum-scale=0.1, maximum-scale=3.5, user-scalable=yes';
+                                                document.getElementsByTagName('head')[0].appendChild(meta);
+                                            }
+                                        })()
+                                    """.trimIndent()
+                                    view?.evaluateJavascript(viewportScript, null)
+
+                                    // Inject comprehensive landscape bypass script
+                                    val landscapeBypassScript = """
+                                        (function() {
+                                            try {
+                                                Object.defineProperty(window, 'orientation', { get: function() { return 90; } });
+                                            } catch(e) {}
+                                            try {
+                                                if (screen.orientation) {
+                                                    Object.defineProperty(screen.orientation, 'type', { get: function() { return 'landscape-primary'; } });
+                                                    Object.defineProperty(screen.orientation, 'angle', { get: function() { return 90; } });
+                                                }
+                                            } catch(e) {}
+                                            try {
+                                                var w = Math.max(window.screen.width, window.screen.height) || 1280;
+                                                var h = Math.min(window.screen.width, window.screen.height) || 800;
+                                                Object.defineProperty(window.screen, 'width', { get: function() { return w; } });
+                                                Object.defineProperty(window.screen, 'height', { get: function() { return h; } });
+                                                Object.defineProperty(window.screen, 'availWidth', { get: function() { return w; } });
+                                                Object.defineProperty(window.screen, 'availHeight', { get: function() { return h; } });
+                                            } catch(e) {}
+                                            try {
+                                                var iw = Math.max(window.innerWidth, window.innerHeight) || 1280;
+                                                var ih = Math.min(window.innerWidth, window.innerHeight) || 720;
+                                                Object.defineProperty(window, 'innerWidth', { get: function() { return iw; } });
+                                                Object.defineProperty(window, 'innerHeight', { get: function() { return ih; } });
+                                            } catch(e) {}
+
+                                            // Suppress or remove any block overlays showing landscape advisories or rotation alerts
+                                            function hideLandscapeMessageOverlays() {
+                                                var keywords = [
+                                                    'landscape mode', 'landscape orientation', 'landscape layout', 'rotate your', 
+                                                    'rotate to landscape', 'please use landscape', 'portrait mode not supported',
+                                                    'best viewed in landscape', 'only in landscape', 'landscape only', 'use landscape',
+                                                    'landscape_mode', 'landscape-mode'
+                                                ];
+                                                var allElements = document.getElementsByTagName('*');
+                                                for (var i = 0; i < allElements.length; i++) {
+                                                    var el = allElements[i];
+                                                    if (!el) continue;
+                                                    if (el.tagName === 'BODY' || el.tagName === 'HTML') continue;
+
+                                                    var isHint = false;
+                                                    if (el.innerText) {
+                                                        var textLow = el.innerText.toLowerCase();
+                                                        for (var j = 0; j < keywords.length; j++) {
+                                                            if (textLow.indexOf(keywords[j]) !== -1) {
+                                                                isHint = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    var idOrClassLow = ((el.id || '') + ' ' + (el.className || '')).toLowerCase();
+                                                    if (idOrClassLow.indexOf('landscape') !== -1 || idOrClassLow.indexOf('rotate') !== -1 || idOrClassLow.indexOf('orientation') !== -1) {
+                                                        isHint = true;
+                                                    }
+
+                                                    if (isHint) {
+                                                        var computed = window.getComputedStyle(el);
+                                                        if (computed.position === 'fixed' || computed.position === 'absolute' || computed.zIndex > 5 || idOrClassLow.indexOf('landscape') !== -1) {
+                                                            el.style.setProperty('display', 'none', 'important');
+                                                            el.style.setProperty('visibility', 'hidden', 'important');
+                                                            el.style.setProperty('opacity', '0', 'important');
+                                                            el.style.setProperty('pointer-events', 'none', 'important');
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            hideLandscapeMessageOverlays();
+                                            if (!window._landscapeIntervalStarted) {
+                                                window._landscapeIntervalStarted = true;
+                                                setInterval(hideLandscapeMessageOverlays, 700);
+                                            }
+                                        })()
+                                    """.trimIndent()
+                                    view?.evaluateJavascript(landscapeBypassScript, null)
+                                }
+                            }
+
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): Boolean {
+                                isWebLoading = true
+                                loadProgress = 10
+                                return false // Direct all loading within this webview frame
+                            }
+
+                            override fun onReceivedSslError(
+                                view: WebView?,
+                                handler: SslErrorHandler?,
+                                error: SslError?
+                            ) {
+                                if (ignoreSslErrors) {
+                                    handler?.proceed() // Proceed safely bypassing custom/untrusted SSL certs in intranets
+                                } else {
+                                    handler?.cancel()
+                                }
+                            }
+                        }
+
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                super.onProgressChanged(view, newProgress)
+                                loadProgress = newProgress
+                                if (newProgress == 100) {
+                                    isWebLoading = false
+                                }
+
+                                // Inject early orientation & screen size spoofing to bypass loading blockers
+                                if (newProgress > 25 && isDesktopMode) {
+                                    val earlyScript = """
+                                        (function() {
+                                            try {
+                                                Object.defineProperty(window, 'orientation', { get: function() { return 90; } });
+                                            } catch(e) {}
+                                            try {
+                                                if (screen.orientation) {
+                                                    Object.defineProperty(screen.orientation, 'type', { get: function() { return 'landscape-primary'; } });
+                                                    Object.defineProperty(screen.orientation, 'angle', { get: function() { return 90; } });
+                                                }
+                                            } catch(e) {}
+                                            try {
+                                                var w = Math.max(window.screen.width, window.screen.height) || 1280;
+                                                var h = Math.min(window.screen.width, window.screen.height) || 800;
+                                                Object.defineProperty(window.screen, 'width', { get: function() { return w; } });
+                                                Object.defineProperty(window.screen, 'height', { get: function() { return h; } });
+                                                Object.defineProperty(window.screen, 'availWidth', { get: function() { return w; } });
+                                                Object.defineProperty(window.screen, 'availHeight', { get: function() { return h; } });
+                                            } catch(e) {}
+                                            try {
+                                                var iw = Math.max(window.innerWidth, window.innerHeight) || 1280;
+                                                var ih = Math.min(window.innerWidth, window.innerHeight) || 720;
+                                                Object.defineProperty(window, 'innerWidth', { get: function() { return iw; } });
+                                                Object.defineProperty(window, 'innerHeight', { get: function() { return ih; } });
+                                            } catch(e) {}
+                                        })()
+                                    """.trimIndent()
+                                    view?.evaluateJavascript(earlyScript, null)
+                                }
+                            }
+
+                            override fun onShowFileChooser(
+                                webView: WebView?,
+                                filePathCallback: ValueCallback<Array<Uri>>?,
+                                fileChooserParams: FileChooserParams?
+                            ): Boolean {
+                                filePathCallbackRef?.onReceiveValue(null)
+                                filePathCallbackRef = filePathCallback
+
+                                val intent = fileChooserParams?.createIntent() ?: android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                                    type = "*/*"
+                                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                }
+                                try {
+                                    fileChooserLauncher.launch(intent)
+                                } catch (e: Exception) {
+                                    filePathCallbackRef?.onReceiveValue(null)
+                                    filePathCallbackRef = null
+                                    Toast.makeText(context, "Cannot open file chooser", Toast.LENGTH_SHORT).show()
+                                    return false
+                                }
+                                return true
+                            }
+                        }
+
+                        webViewRef = this
+                        loadUrl(browserUrl)
+                    }
+                },
+                update = { webView ->
+                    webViewRef = webView
+                    webView.settings.textZoom = textZoomLevel
+
+                    val desktopUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    val currentUA = webView.settings.userAgentString
+                    val targetUA = if (isDesktopMode) desktopUA else null
+
+                    if (currentUA != targetUA) {
+                        webView.settings.userAgentString = targetUA
+                        webView.reload()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White)
+            )
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isWebLoading,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                WebBrowserLoadingOverlay(progress = loadProgress)
+            }
+        }
     }
 }
 
@@ -981,7 +1356,7 @@ fun HelpGuideTab(viewModel: HostsBrowserViewModel) {
                 HelpStepItem(
                     stepNum = "3",
                     title = "Use Custom DNS Browser Tab",
-                    desc = "Tap on the first 'Browser' tab, enter 'https://districts.upeoffice.gov.in' and enjoy flawless secure access with all login/signing operations intact!"
+                    desc = "Tap on the first 'Browser' tab, enter 'https://districts.upeoffice.gov.in/efile/' and enjoy flawless secure access with all login/signing operations intact!"
                 )
             }
         }
